@@ -2,11 +2,12 @@
 
 #include <iostream>
 #include <cmath>
+#include <cstdlib>
 #include <pthread.h>
 //#include <studio.h>
 
 
-class buffer //
+class buffer //contains the value of the int being passed. i mignt not really need this i could just create an array.
 {
 	public:
 		void setVal(int x);
@@ -18,72 +19,126 @@ class buffer //
 void buffer::setVal(int x){val=x;}
 int buffer::getVal(){return val;}
 
+struct bufferArgs
+{
+	int *buffer;
+	int counter, counterLimit, in, out ,bufferSize, bufferLocation;
+	pthread_mutex_t *mutexVar;
+	pthread_cond_t *empty, *full;
+	bufferArgs(){counter=0;}
+};
+		
 /*
-void *producer(buffer currentBuffer[], int &in, int &out, int &countLim, int bufferSize)//do i pass these by refrence? i think yes
+void *consumer( void *arg)
 {
-	while(true)//figure out what to put here
+	bufferArgs* myBuffer=(bufferArgs*) arg;
+	while(myBuffer->counter < myBuffer->counterLimit)
 	{
-		while (((in+1)%bufferSize)==out){};//do nothing, wait for buffer space
-		currentBuffer[in].setVal(rand());
-		std::cout <<"Producer: "<< currentBuffer[in].getVal() << std::endl;
-		in=(in+1)%bufferSize;
-		countLim++;
-	}
+		while(myBuffer->in==myBuffer->out){}; // do nothing
+		std::cout << "Consumer: " << myBuffer->buffer[myBuffer->out] << std::endl;//prints number in buffer
+		myBuffer->buffer[myBuffer->out]=0;//removes current value in buffer by seting it to zero.
+		myBuffer->out=(myBuffer->out+1)%myBuffer->bufferSize; // increment buffer location up to n-1
+		myBuffer->counter++; //increment buffer count
 
-}
-void *consumer( buffer currentBuffer[], int &in, int &out, int &countLim, int bufferSize)
-{
-	while(true)
-	{
-		while(in==out){};
-		std::cout << "consumer: " << currentBuffer[out].getVal() << std::endl;
-		currentBuffer[out].setVal(0);
-		out=(out+1)%bufferSize;
-		countLim++;
 	}
-}*/
-void *producer(void *ptr)
+}
+void *producer(void *arg)
 {
-	while(true)//figure out what to put here
+	bufferArgs* myBuffer=(bufferArgs*) arg;
+	while(myBuffer->counter < myBuffer->counterLimit)
 	{
-		while (((in+1)%buffSize)==out){};//do nothing, wait for buffer space
-		Buff1[in].setVal(rand());
-		std::cout <<"Producer: "<< Buff1[in].getVal() << std::endl;
-		in=(in+1)%bufferSize;
-		countLim++;
+		while (((myBuffer->in+1)%myBuffer->bufferSize)==myBuffer->out){};//do nothing, wait for buffer space
+		myBuffer->buffer[myBuffer->in]=rand();//asign random number to buffer
+		std::cout <<"Producer: "<< myBuffer->buffer[myBuffer->in] << std::endl;//printout same random number
+		myBuffer->in=(myBuffer->in+1)%myBuffer->bufferSize;//increment buffer location up to n-1
+		myBuffer->counter++; //increment counter
+
 	}
 
 };
+*/
 
 
-
-
-
-
-
-
-int main(int argc, char, *argv[])
+void *consumer( void *arg)
 {
-	int buffSize, countLim, in=0, out=0;
-	srand(time(0));
 
-	std::cin >> buffSize;
-	std::cin >> countLim;
+	bufferArgs* myBuffer=(bufferArgs*) arg;
+	while(myBuffer->counter < myBuffer->counterLimit)
+	{
+		for(myBuffer->out=0; myBuffer->out<myBuffer->bufferSize; myBuffer->out++)
+		{
+			pthread_mutex_lock(myBuffer->mutexVar);
+			while(myBuffer->out==myBuffer->bufferSize)
+			{
+				pthread_cond_wait(myBuffer->full, myBuffer->mutexVar);
+			}
+			std::cout << "Consumer: " << myBuffer->buffer[myBuffer->out] << std::endl;//prints number in buffer
+			myBuffer->buffer[myBuffer->out]=0;//removes current value in buffer by seting it to zero.
+			myBuffer->counter++;
+			pthread_cond_signal(myBuffer->empty);
+			pthread_mutex_unlock(myBuffer->mutexVar);
+		}
+	}
+}
+void *producer(void *arg)
+{
+	bufferArgs* myBuffer=(bufferArgs*) arg;
+
+	while(myBuffer->counter < myBuffer->counterLimit)
+	{
+		for(myBuffer->in=0; myBuffer->in < myBuffer->bufferSize; myBuffer->in++){
+			pthread_mutex_lock(myBuffer->mutexVar);
+			while(myBuffer->in==myBuffer->bufferSize)
+			{
+				pthread_cond_wait(myBuffer->empty, myBuffer->mutexVar);
+			}
+			myBuffer->buffer[myBuffer->in]=rand();
+			std::cout <<"Producer: "<< myBuffer->buffer[myBuffer->in] << std::endl;//printout same random number
+			myBuffer->counter++;
+			pthread_cond_signal(myBuffer->full);
+			pthread_mutex_unlock(myBuffer->mutexVar);
+		}
+
+	}
+};
+
+//i think the problem im having is thiat im not iteraiting through the array corectly, something about int size. don't knoe. too tired
+
+
+
+
+int main()
+{
+	int bufferSize, countLimit;
+	srand(time(0));
+	pthread_mutex_t threadLock;
+
+	std::cin >> bufferSize;
+	std::cin >> countLimit;
 	try //if the enter a number <= 0, catch the error , send an cerr, and end the program.
 	{
-		if(buffSize<1 || countLim<1){throw 1;}
+		if(bufferSize<1 || countLimit<1){throw 1;}
 	}
 	catch(int err_code)
 	{
 		std::cerr << "You have entered a non-positive value.";
 		return 0;
 	}
-	buffer *Buff1 = new buffer[buffSize];
+	int *buff1 = new int[bufferSize];
+	bufferArgs *sharedBuffer = new bufferArgs;
+	sharedBuffer->buffer=buff1;
+	sharedBuffer->counterLimit=countLimit;
+	sharedBuffer->bufferSize=bufferSize;
 
 	pthread_t thread1, thread2;
-	pthread_create(&thread1, NULL, producer,(void) )
+	pthread_create(&thread1, NULL, producer,(void *) sharedBuffer);
+	pthread_create(&thread2, NULL, consumer,(void *) sharedBuffer);
 
+	pthread_join( thread1, NULL);
+	pthread_join( thread2, NULL);
 
-	delete [] Buff1;
+//testing
+
+	//delete [] Buff1;
 	return 0;
 }
