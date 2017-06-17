@@ -65,18 +65,19 @@ void *consumer( void *arg)
 	bufferArgs* myBuffer=(bufferArgs*) arg;
 	while(myBuffer->counter < myBuffer->counterLimit)
 	{
-		for(myBuffer->out=0; myBuffer->out<myBuffer->bufferSize; myBuffer->out++)
+		for(int i=0; i<myBuffer->bufferSize; i++)
 		{
-			pthread_mutex_lock(myBuffer->mutexVar);
-			while(myBuffer->out==myBuffer->bufferSize)
+			while(i==myBuffer->bufferSize)
 			{
 				pthread_cond_wait(myBuffer->full, myBuffer->mutexVar);
 			}
-			std::cout << "Consumer: " << myBuffer->buffer[myBuffer->out] << std::endl;//prints number in buffer
-			myBuffer->buffer[myBuffer->out]=0;//removes current value in buffer by seting it to zero.
+			pthread_mutex_lock(myBuffer->mutexVar);
+			std::cout << "Consumer: " << myBuffer->buffer[i] << std::endl;//prints number in buffer
+			myBuffer->buffer[i]=0;//removes current value in buffer by seting it to zero.
 			myBuffer->counter++;
-			pthread_cond_signal(myBuffer->empty);
 			pthread_mutex_unlock(myBuffer->mutexVar);
+			pthread_cond_signal(myBuffer->empty);
+
 		}
 	}
 }
@@ -86,17 +87,18 @@ void *producer(void *arg)
 
 	while(myBuffer->counter < myBuffer->counterLimit)
 	{
-		for(myBuffer->in=0; myBuffer->in < myBuffer->bufferSize; myBuffer->in++){
-			pthread_mutex_lock(myBuffer->mutexVar);
-			while(myBuffer->in==myBuffer->bufferSize)
+		for(int i=0; i < myBuffer->bufferSize; i++){
+			while(i==myBuffer->bufferSize)
 			{
 				pthread_cond_wait(myBuffer->empty, myBuffer->mutexVar);
 			}
-			myBuffer->buffer[myBuffer->in]=rand();
-			std::cout <<"Producer: "<< myBuffer->buffer[myBuffer->in] << std::endl;//printout same random number
+			pthread_mutex_lock(myBuffer->mutexVar);
+			myBuffer->buffer[i]=rand();
+			std::cout <<"Producer: "<< myBuffer->buffer[i] << std::endl;//printout same random number
 			myBuffer->counter++;
-			pthread_cond_signal(myBuffer->full);
 			pthread_mutex_unlock(myBuffer->mutexVar);
+			pthread_cond_signal(myBuffer->full);
+
 		}
 
 	}
