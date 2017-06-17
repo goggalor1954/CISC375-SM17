@@ -21,6 +21,7 @@ int buffer::getVal(){return val;}
 
 pthread_mutex_t mutexVar = PTHREAD_MUTEX_INITIALIZER;
 
+
 struct bufferArgs
 {
 	int *buffer;
@@ -28,8 +29,8 @@ struct bufferArgs
 	//pthread_cond_t *empty, *full;
 	bufferArgs(){counter=0, in=0, out=0, counterOut=0;}
 };
-	pthread_cond_t empty=PTHREAD_COND_INITIALIZER;
-	pthread_cond_t full=PTHREAD_COND_INITIALIZER;
+pthread_cond_t empty=PTHREAD_COND_INITIALIZER;
+pthread_cond_t full=PTHREAD_COND_INITIALIZER;
 
 void *consumer( void *arg)
 {
@@ -38,21 +39,24 @@ std::cout << "got here " << std::endl;
 	bufferArgs* myBuffer=(bufferArgs*) arg;
 	while(myBuffer->counterOut<myBuffer->counterLimit)
 	{
+		for(myBuffer->out=0; myBuffer->out<=myBuffer->bufferSize; myBuffer->out++)
+		{
 std::cout << "got here 2" << std::endl;
 		pthread_mutex_lock(&mutexVar);
-			while(myBuffer->out==0)
+			while(myBuffer->out==myBuffer->bufferSize)
 			{
 std::cout << "got here 3" << std::endl;
+
 				pthread_cond_wait(&full, &mutexVar);
 			}
 std::cout << "got here 4" << std::endl;
 			std::cout << "Consumer: " << myBuffer->buffer[myBuffer->out] << std::endl;//prints number in buffer
 			myBuffer->buffer[myBuffer->out]=0;//removes current value in buffer by seting it to zero.
 			myBuffer->counterOut++;
-			myBuffer->out++;
-			if(myBuffer->out==myBuffer->bufferSize){myBuffer->out=0;}
+
 			pthread_cond_signal(&empty);
 			pthread_mutex_unlock(&mutexVar);
+		}
 
 	}
 	pthread_exit(NULL);
@@ -60,33 +64,35 @@ std::cout << "got here 4" << std::endl;
 void *producer(void *arg)
 {
 	bufferArgs* myBuffer=(bufferArgs*) arg;
-	while(myBuffer->counter<myBuffer->counterLimit)
+	while(myBuffer->counter<myBuffer->counterLimit)// while counter is lsee than counter limit
 	{
-		pthread_mutex_lock(&mutexVar);
-			while(myBuffer->in==myBuffer->bufferSize)
+		for(myBuffer->in=0; myBuffer->in<=myBuffer->bufferSize; myBuffer->in++)//loop through the buffer
+		{
+			pthread_mutex_lock(&mutexVar); //lock the mutex
+			while(myBuffer->in==myBuffer->bufferSize) //if in equals buffer size, wait for the empty signal
 			{
 				pthread_cond_wait(&empty, &mutexVar);
 			}
-			myBuffer->buffer[myBuffer->in]=rand();
+			myBuffer->buffer[myBuffer->in]=rand(); //insert random number into buffer
 			std::cout <<"Producer: "<< myBuffer->buffer[myBuffer->in] << std::endl;//printout same random number
-			myBuffer->counter++;
-			myBuffer->in++;
-			if(myBuffer->in==myBuffer->bufferSize){myBuffer->in=0;}
-			pthread_cond_signal(&full);
-			pthread_mutex_unlock(&mutexVar);
+			myBuffer->counter++; //increment counter
+
+			pthread_cond_signal(&full); //signal buffer is full(should i be doing that here?)
+			pthread_mutex_unlock(&mutexVar); //unlock mutex
+		}
 
 
 	}
 	pthread_exit(NULL);
 };
 
-//i think the problem im having is thiat im not iteraiting through the array corectly, something about int size. don't knoe. too tired
-//new idead. mutexes might not work between processs. maybe i should be using semaphores.
+//got ti partially to work. but its not stoping bhen the buffer is Full.
 
 
 
 int main()
 {
+
 	int bufferSize, countLimit;
 	srand(time(0));
 	pthread_mutex_t threadLock;
@@ -116,9 +122,5 @@ int main()
 	pthread_join( thread1, NULL);
 	pthread_join( thread2, NULL);
 
-
-
-
-	//delete [] Buff1;
 	return 0;
 }
