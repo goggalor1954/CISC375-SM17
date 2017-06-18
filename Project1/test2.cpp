@@ -29,33 +29,29 @@ struct bufferArgs
 	//pthread_cond_t *empty, *full;
 	bufferArgs(){counter=0, in=0, out=0, counterOut=0;}
 };
-pthread_cond_t empty=PTHREAD_COND_INITIALIZER;
-pthread_cond_t full=PTHREAD_COND_INITIALIZER;
+pthread_cond_t isNotEmpty=PTHREAD_COND_INITIALIZER;
+pthread_cond_t isNotFull=PTHREAD_COND_INITIALIZER;
 
 void *consumer( void *arg)
 {
-//testing
-std::cout << "got here " << std::endl;
 	bufferArgs* myBuffer=(bufferArgs*) arg;
 	while(myBuffer->counterOut<myBuffer->counterLimit)
 	{
-		for(myBuffer->out=0; myBuffer->out<=myBuffer->bufferSize; myBuffer->out++)
+		for(int out=0; out<=myBuffer->bufferSize; out++)
 		{
-std::cout << "got here 2" << std::endl;
 		pthread_mutex_lock(&mutexVar);
-			while(myBuffer->out==myBuffer->bufferSize)
+			while(out==myBuffer->bufferSize )
 			{
-std::cout << "got here 3" << std::endl;
-
-				pthread_cond_wait(&full, &mutexVar);
+std::cout << "waiting in consumer" << std::endl;
+				pthread_cond_wait(&isNotEmpty, &mutexVar);
+				out=0;
+std::cout << "done waiting in consumer "<< std::endl;
 			}
-std::cout << "got here 4" << std::endl;
-			std::cout << "Consumer: " << myBuffer->buffer[myBuffer->out] << std::endl;//prints number in buffer
-			myBuffer->buffer[myBuffer->out]=0;//removes current value in buffer by seting it to zero.
-			myBuffer->counterOut++;
 
-			pthread_cond_signal(&empty);
+
+			std::cout << "Consumer: " << myBuffer->buffer[out] << std::endl;//prints number in buffer
 			pthread_mutex_unlock(&mutexVar);
+			pthread_cond_signal(&isNotFull);
 		}
 
 	}
@@ -63,22 +59,30 @@ std::cout << "got here 4" << std::endl;
 }
 void *producer(void *arg)
 {
+	pthread_mutex_unlock(&mutexVar);
+	pthread_cond_signal(&isNotFull);
+
 	bufferArgs* myBuffer=(bufferArgs*) arg;
 	while(myBuffer->counter<myBuffer->counterLimit)// while counter is lsee than counter limit
 	{
-		for(myBuffer->in=0; myBuffer->in<=myBuffer->bufferSize; myBuffer->in++)//loop through the buffer
+		for(int in=0; in<=myBuffer->bufferSize; in++)//loop through the buffer
 		{
 			pthread_mutex_lock(&mutexVar); //lock the mutex
-			while(myBuffer->in==myBuffer->bufferSize) //if in equals buffer size, wait for the empty signal
+			while(in==myBuffer->bufferSize ) //if in equals buffer size, wait for the isNotFull signal // i think i need to add more here. its getting stuck because it needs to be dependant on something more than size
 			{
-				pthread_cond_wait(&empty, &mutexVar);
-			}
-			myBuffer->buffer[myBuffer->in]=rand(); //insert random number into buffer
-			std::cout <<"Producer: "<< myBuffer->buffer[myBuffer->in] << std::endl;//printout same random number
-			myBuffer->counter++; //increment counter
+std::cout <<"waiting in prodeucer\n";
+				pthread_cond_wait(&isNotFull, &mutexVar);
+				in=0;
 
-			pthread_cond_signal(&full); //signal buffer is full(should i be doing that here?)
+std::cout <<"done waiting in prodeucer\n";
+			}
+std::cout<<in << "\n";
+			myBuffer->buffer[in]=rand(); //insert random number into buffer
+			std::cout <<"Producer: "<< myBuffer->buffer[in] << std::endl;//printout same random number
+			myBuffer->counter++; //increment counter
 			pthread_mutex_unlock(&mutexVar); //unlock mutex
+			pthread_cond_signal(&isNotEmpty); //signal buffer is not empty(should i be doing that here?)
+
 		}
 
 
@@ -87,7 +91,7 @@ void *producer(void *arg)
 };
 
 //got ti partially to work. but its not stoping bhen the buffer is Full.
-
+//maybe i shouldnt be unlocking the mutex at all? just the signal flags?
 
 
 int main()
