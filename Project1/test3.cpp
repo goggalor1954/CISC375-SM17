@@ -14,31 +14,34 @@ pthread_cond_t isNotFull=PTHREAD_COND_INITIALIZER;
 struct bufferArgs
 {
 	int *buffer;
-	int counter, counterOut, counterLimit,bufferSize;
-	//pthread_cond_t *empty, *full;
-	bufferArgs(){counter=0, counterOut=0;}
+	int counter, counterOut, counterLimit,bufferSize, in, out;
+	bufferArgs(){counter=0, counterOut=0, in=0, out=0;}
 };
 
 void *consumer( void *arg)
 {
 	bufferArgs* myBuffer=(bufferArgs*) arg;
-	while(myBuffer->counterOut<myBuffer->counterLimit)
+	while(myBuffer->counterOut<=myBuffer->counterLimit)
 	{
-		for(int out=0; out<=myBuffer->bufferSize-1; out++)
+		while(myBuffer->out <myBuffer->bufferSize)
 		{
 			pthread_mutex_lock(&mutexVar);
-			while(out==bufferSize )
+std::cout << "in:" << myBuffer->in << " out:" <<myBuffer->out << "\n";
+			while(myBuffer->out==myBuffer->in)
 			{
-std::cout <<myBuffer->counter <<" testing consumer counter\n";
+std::cout <<"waiting\n";
 				pthread_cond_wait(&isNotEmpty, &mutexVar);
-				out++;
+std::cout<<"done\n";
+			//myBuffer->out=0;
 			}
 			myBuffer->counterOut++;
-			std::cout << "Consumer: " << myBuffer->buffer[out] << std::endl;//prints number in buffer
+			myBuffer->out++;
+			std::cout << "Consumer: " << myBuffer->buffer[myBuffer->out] << std::endl;//prints number in buffer
+
 			pthread_mutex_unlock(&mutexVar);
 			pthread_cond_signal(&isNotFull);
-
 		}
+		myBuffer->out=0;
 
 	}
 	pthread_exit(NULL);
@@ -51,28 +54,28 @@ void *producer(void *arg)
 	bufferArgs* myBuffer=(bufferArgs*) arg;
 	while(myBuffer->counter<myBuffer->counterLimit)// while counter is lsee than counter limit
 	{
-		for(int in=0; in<=myBuffer->bufferSize-1; in++)//loop through the buffer
+		while(myBuffer->i<myBuffer->bufferSize)
 		{
 			pthread_mutex_lock(&mutexVar); //lock the mutex
-			while(in==0 ) //if in equals buffer size, wait for the isNotFull signal
+			while(myBuffer->in == myBuffer->bufferSize ) //if in equals buffer size, wait for the isNotFull signal
 			{
-std::cout <<myBuffer->counter <<" testing prodecer counter\n";
 				pthread_cond_wait(&isNotFull, &mutexVar);
-				in++;
+				//myBuffer->in=0;
 			}
-			myBuffer->buffer[in]=rand(); //insert random number into buffer
-			std::cout <<"Producer: "<< myBuffer->buffer[in] << std::endl;//printout same random number
+			myBuffer->buffer[myBuffer->in]=rand(); //insert random number into buffer
+			std::cout <<"Producer: "<< myBuffer->buffer[myBuffer->in] << std::endl;//printout same random number
 			myBuffer->counter++; //increment counter
+			myBuffer->in++;
 			pthread_mutex_unlock(&mutexVar); //unlock mutex
 			pthread_cond_signal(&isNotEmpty); //signal buffer is not empty(should i be doing that here?)
-//put in a thing here for if it reaches the counter
 
 		}
+		myBuffer->in=0;
 	}
 	pthread_exit(NULL);
 };
 
-//looping wrong somehow
+//problem here is that both are looping endlessly. need to come up with a condition to check that they are the ned of the beffer without reseting the loop from inside.
 
 int main()
 {
@@ -105,8 +108,6 @@ int main()
 
 	pthread_join( thread1, NULL);
 	pthread_join( thread2, NULL);
-
-
 
 	return 0;
 }
